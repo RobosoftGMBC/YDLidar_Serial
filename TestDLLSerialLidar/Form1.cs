@@ -109,6 +109,15 @@ namespace TestDLLSerialLidar
                 lblModelo.Text = commSerial.Modelo;
                 lblHealthStatus.Text = commSerial.Health;
 
+                foreach (var ponto in commSerial.pontos)
+                {
+                    if (ponto != null)
+                        if (!ponto.lido)
+                        {
+                            rtComunicacao.AppendText("Angulo: " + ponto.Angulo.ToString() + "Distancia:" + ponto.Distancia.ToString() + Environment.NewLine);
+                            ponto.lido = true;
+                        }
+                }
 
             }
         }

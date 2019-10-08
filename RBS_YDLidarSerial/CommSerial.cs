@@ -1,12 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.IO.Ports; 
-using System.Threading;
+using System.IO.Ports;
 using System.Management;
-using System.Collections;
 
 namespace RBS_YDLidarSerial
 {
@@ -22,7 +18,10 @@ namespace RBS_YDLidarSerial
 
         public static string ByteToString(byte b)
         {
-            return Convert.ToString(b);
+            string aux = b.ToString("X");
+            if (aux.Length < 2)
+                aux = "0" + aux;
+            return aux;
         }
         public static int HexStringToInt(string s)
         {
@@ -46,6 +45,20 @@ namespace RBS_YDLidarSerial
             int auxint = aux >> qnt;
             return StringIntToHexString(auxint.ToString());
         }
+
+        public static bool Checksum(List<string> data, int checksum)
+        {
+            int C = Utilidades.HexStringToInt(data[8]) + (Utilidades.HexStringToInt(data[9]) << 8);
+            int dataCheckSum = Utilidades.HexStringToInt(data[0]) + (Utilidades.HexStringToInt(data[1]) << 8);
+            dataCheckSum ^= Utilidades.HexStringToInt(data[4]) + (Utilidades.HexStringToInt(data[5]) << 8);
+            for (int i = 0; i < Utilidades.HexStringToInt(data[3]); i++)
+            {
+                dataCheckSum ^= Utilidades.HexStringToInt(data[i * 2 + 10]) + (Utilidades.HexStringToInt(data[i * 2 + 11]) << 8);
+            }
+            dataCheckSum ^= Utilidades.HexStringToInt(data[2]) + (Utilidades.HexStringToInt(data[3]) << 8);
+            dataCheckSum ^= Utilidades.HexStringToInt(data[6]) + (Utilidades.HexStringToInt(data[7]) << 8);
+            return dataCheckSum == checksum;
+        }
     }
 
     public class Ponto
@@ -53,6 +66,7 @@ namespace RBS_YDLidarSerial
         public int IdLeitura;
         public float Angulo;
         public float Distancia;
+        public bool lido = false;
     }
 
     public class Mensagem
@@ -78,9 +92,6 @@ namespace RBS_YDLidarSerial
         {
             switch (tipo)
             {
-                case Tipo.Scan:
-                    OrganizaScan();
-                    break;
                 case Tipo.PointCloud:
                     OrganizaCloudPoint();
                     break;
@@ -99,13 +110,13 @@ namespace RBS_YDLidarSerial
         {
             switch (conteudo[7])
             {
-                case "0":
+                case "00":
                     HealthStatus = "Normal";
                     break;
-                case "1":
+                case "01":
                     HealthStatus = "Normal";
                     break;
-                case "2":
+                case "02":
                     HealthStatus = "Erro codigo: 0x" + conteudo[8] + ", 0x" + conteudo[9];
                     break;
                 default:
@@ -118,7 +129,7 @@ namespace RBS_YDLidarSerial
         private void OrganizaInfoDevice()
         {
             //Modelo
-            if (conteudo[6] == "4")
+            if (conteudo[6] == "04")
                 Model = "X4";
             else
                 Model = "Nao cadastrado";
@@ -140,9 +151,9 @@ namespace RBS_YDLidarSerial
         private void OrganizaCloudPoint()
         {
             int qntPontos = Utilidades.HexStringToInt(conteudo[3]);
-            bool pointCloud = conteudo[2] == "0";
-            int fsa = Utilidades.HexStringToInt(conteudo[5] + Utilidades.ShiftRightString(conteudo[4], 1));
-            int lsa = Utilidades.HexStringToInt(conteudo[6] + Utilidades.ShiftRightString(conteudo[7], 1));
+            bool pointCloud = conteudo[2] == "00";
+            int fsa = Utilidades.HexStringToInt(conteudo[5] + conteudo[4]);
+            int lsa = Utilidades.HexStringToInt(conteudo[7] + conteudo[6]);
             float dist1 = Distancia(1);
             float distLsn = Distancia(qntPontos);
             float StartAngleFSA = ((fsa >> 1) / 64.0F) + AngleCorrect(dist1);  //in deg
@@ -177,14 +188,13 @@ namespace RBS_YDLidarSerial
                     p.Angulo = angulo;
                     pontos.Enqueue(p);
                 }
-
             }
         }
 
         private float Distancia(int index)
         {
             index -= 1;
-            return Utilidades.HexStringToFloat(conteudo[index * 2 + 10] + Utilidades.ShiftRightString(conteudo[index * 2 + 9], 8)) / 4f;
+            return Utilidades.HexStringToFloat(conteudo[index * 2 + 10] + Utilidades.ShiftRightString(conteudo[index * 2 + 11], 8)) / 4f;
         }
 
         private float AngleCorrect(float dist)
@@ -193,9 +203,6 @@ namespace RBS_YDLidarSerial
                 return (float)(Math.Atan(21.8F * ((155.3F - dist) / (155.3F * dist))) / Math.PI * 180.0F);
             else
                 return 0f;
-        }
-        private void OrganizaScan()
-        {
         }
 
         public List<Ponto> GetPointCloud()
@@ -217,6 +224,7 @@ namespace RBS_YDLidarSerial
     public class UnmountReadSerial
     {
         public Queue<Mensagem> FilaMensagens = new Queue<Mensagem>();
+        private List<string> sobrei = new List<string>();
 
         public void DecodificarMensagem(byte[] leituraSerial)
         {
@@ -224,6 +232,7 @@ namespace RBS_YDLidarSerial
 
             foreach (var mensagem in mensagens)
             {
+                Tipo a = IdentificarTipoMensagem(mensagem);
                 Mensagem m = new Mensagem(IdentificarTipoMensagem(mensagem), mensagem);
                 FilaMensagens.Enqueue(m);
             }
@@ -233,23 +242,30 @@ namespace RBS_YDLidarSerial
         {
 
             List<string> serial = new List<string>();
+
+            serial.AddRange(sobrei);
+            sobrei.Clear();
             
             List<List<string>> mensagens = new List<List<string>>();
 
             //Cria uma lista com a mensagem convertida 
             for (int i = 0; i < leituraSerial.Length; i++)
             {
-                serial.Add(leituraSerial[i].ToString("X"));
+                serial.Add(Utilidades.ByteToString(leituraSerial[i]));
             }
 
             bool comMensagem = true;
             while (comMensagem)
             {
                 List<string> mensagem = new List<string>(RemoveMensagem(ref serial));
-
+                
                 comMensagem = mensagem.Count > 0;
                 if (comMensagem)
+                {
                     mensagens.Add(mensagem);
+                }
+                else if (serial.Count > 0)
+                    sobrei = serial.ToList();
             }
 
             return mensagens;
@@ -261,26 +277,67 @@ namespace RBS_YDLidarSerial
             //A mensagem inicia com 0XA55A
             List<string> auxS = new List<string>();
             int inicioMensagem = InicioMensagem(serial);
+            int tamanhoMensagem = -1;
+            bool tamanhoMensagemValido = false;
+            bool checkSumOk = true;
+
             if (inicioMensagem >= 0) //Encontrou um inicio
             {
-                serial = serial.GetRange(inicioMensagem, serial.Count - inicioMensagem); //Recorta a mensagem 
-                int fimMensagem = InicioMensagem(serial.GetRange(1, serial.Count - inicioMensagem - 1)); // Encontra o proximo inicio
-                if (fimMensagem >= 0)
+                if (serial.Count > inicioMensagem + 8)
                 {
-                    fimMensagem += 1;
-                    auxS = serial.GetRange(0, fimMensagem);
-                    serial = serial.GetRange(fimMensagem, serial.Count - fimMensagem);
-                    return auxS;
-                }else
+                    Tipo tipoMensagem = IdentificarTipoMensagem(serial.GetRange(inicioMensagem, 7));
+
+                    switch (tipoMensagem)
+                    {
+                        case Tipo.Scan:
+                            tamanhoMensagem = 10;
+                            break;
+                        case Tipo.PointCloud:
+                            tamanhoMensagem = Utilidades.HexStringToInt(serial[inicioMensagem + 3]) * 2 + 10;
+                            break;
+                        case Tipo.InfoModelo:
+                            tamanhoMensagem = 10;
+                            break;
+                        case Tipo.Health:
+                            tamanhoMensagem = 10;
+                            break;
+                        default:
+                            break;
+                    }
+                    tamanhoMensagemValido = (serial.Count + inicioMensagem) >= (tamanhoMensagem);
+
+                    
+                    if (tamanhoMensagemValido && (tipoMensagem == Tipo.PointCloud))
+                        checkSumOk = Utilidades.Checksum(serial.GetRange(inicioMensagem, serial.Count - inicioMensagem), Utilidades.HexStringToInt(serial[inicioMensagem + 9] + serial[inicioMensagem + 8]));
+                }
+                else
+                    tamanhoMensagemValido = false;
+
+                if (tamanhoMensagemValido && checkSumOk)
                 {
-                    auxS = serial.ToList();
-                    serial.Clear();
-                    return auxS;
+                    serial = serial.GetRange(inicioMensagem, serial.Count - inicioMensagem); //Recorta a mensagem 
+                    int fimMensagem = InicioMensagem(serial.GetRange(1, serial.Count - inicioMensagem - 1)); // Encontra o proximo inicio
+                    if (fimMensagem >= 0)
+                    {
+                        fimMensagem += 1;
+                        auxS = serial.GetRange(0, fimMensagem);
+                        serial = serial.GetRange(fimMensagem, serial.Count - fimMensagem);
+                        return auxS;
+                    }
+                    else
+                    {
+                        auxS = serial.ToList();
+                        serial.Clear();
+                        return auxS;
+                    }
+                }else if (!checkSumOk)
+                {
+                    serial.RemoveRange(0, 2);
                 }
             }
-
             return auxS;
         }
+
 
         private Tipo IdentificarTipoMensagem(List<string> mensagem)
         {
@@ -291,19 +348,21 @@ namespace RBS_YDLidarSerial
             {
                 case "81":
                     return Tipo.Scan;
-                case "4":
+                case "04":
                     return Tipo.InfoModelo;
-                case "6":
+                case "06":
                     return Tipo.Health;
                 default:
-                    throw new Exception("Nao foi possivel identificar o tipo da mensagem. Valor do byte: " + mensagem[6]);
+                    break;
+                    //throw new Exception("Nao foi possivel identificar o tipo da mensagem. Valor do byte: " + mensagem[6]);
             }
+            return Tipo.Scan;
 
         }
 
         private int InicioMensagem(List<string> serial)
         {
-            for (int i = 0; i < serial.Count; i++)
+            for (int i = 0; i < serial.Count - 1; i++)
             {
                 if (serial[i] == "A5")
                 {
@@ -381,7 +440,8 @@ namespace RBS_YDLidarSerial
         public string VersaoHardware = "";
         public string Health = "";
         public Modo modoOperacao = Modo.Single;
-        public List<Ponto> pontos = new List<Ponto>();
+        public Ponto[] pontos = new Ponto[3000];
+        private int idPonto = 0;
         public bool Conectado { get => serialPort.IsOpen; }
 
         //Variaveis privadas
@@ -390,20 +450,29 @@ namespace RBS_YDLidarSerial
         private MountWriteSerial montarSerial = new MountWriteSerial();
         private UnmountReadSerial desmontarSerial = new UnmountReadSerial();
 
+        public CommSerial()
+        {
+            pontos.Initialize();
+        }
 
         private void ReadSerial(object sender,SerialDataReceivedEventArgs e)
         {
             SerialPort sp = (SerialPort)sender;
-            byte[] mensagem = new byte[sp.BytesToRead];
-            sp.Read(mensagem, 0, sp.BytesToRead);
-            if (mensagem.Length > 0)
+            int qntBytes = sp.BytesToRead;
+            if (qntBytes >= 10)
             {
-                desmontarSerial.DecodificarMensagem(mensagem);
-            }
+                byte[] mensagem = new byte[qntBytes];
+                sp.Read(mensagem, 0, qntBytes);
 
-            while (desmontarSerial.FilaMensagens.Count > 0)
-            {
-                OrganizarMensagem(desmontarSerial.FilaMensagens.Dequeue());
+                if (mensagem.Length > 0)
+                {
+                    desmontarSerial.DecodificarMensagem(mensagem);
+                }
+
+                while (desmontarSerial.FilaMensagens.Count > 0)
+                {
+                    OrganizarMensagem(desmontarSerial.FilaMensagens.Dequeue());
+                }
             }
         }
 
@@ -412,7 +481,13 @@ namespace RBS_YDLidarSerial
             switch (m.tipo)
             {
                 case Tipo.PointCloud:
-                    pontos = m.GetPointCloud();
+                    foreach(Ponto p in m.GetPointCloud())
+                    {
+                        if (idPonto >= 3000)
+                            idPonto = 0;
+                        p.IdLeitura = idPonto++;
+                        pontos[p.IdLeitura] = p;
+                    }
                     break;
                 case Tipo.InfoModelo:
                     Firmware = m.Firmware;
@@ -497,9 +572,7 @@ namespace RBS_YDLidarSerial
                         {
                             ydLidardevice.Add(property.GetPropertyValue("Name").ToString());
                         }
-
                 }
-
             }
 
             return ydLidardevice;
