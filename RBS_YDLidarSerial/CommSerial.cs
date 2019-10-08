@@ -232,7 +232,6 @@ namespace RBS_YDLidarSerial
 
             foreach (var mensagem in mensagens)
             {
-                Tipo a = IdentificarTipoMensagem(mensagem);
                 Mensagem m = new Mensagem(IdentificarTipoMensagem(mensagem), mensagem);
                 FilaMensagens.Enqueue(m);
             }
@@ -280,12 +279,13 @@ namespace RBS_YDLidarSerial
             int tamanhoMensagem = -1;
             bool tamanhoMensagemValido = false;
             bool checkSumOk = true;
+            Tipo tipoMensagem;
 
             if (inicioMensagem >= 0) //Encontrou um inicio
             {
                 if (serial.Count > inicioMensagem + 8)
                 {
-                    Tipo tipoMensagem = IdentificarTipoMensagem(serial.GetRange(inicioMensagem, 7));
+                    tipoMensagem = IdentificarTipoMensagem(serial.GetRange(inicioMensagem, 7));
 
                     switch (tipoMensagem)
                     {
@@ -309,31 +309,29 @@ namespace RBS_YDLidarSerial
                     
                     if (tamanhoMensagemValido && (tipoMensagem == Tipo.PointCloud))
                         checkSumOk = Utilidades.Checksum(serial.GetRange(inicioMensagem, serial.Count - inicioMensagem), Utilidades.HexStringToInt(serial[inicioMensagem + 9] + serial[inicioMensagem + 8]));
-                }
-                else
-                    tamanhoMensagemValido = false;
 
-                if (tamanhoMensagemValido && checkSumOk)
-                {
-                    serial = serial.GetRange(inicioMensagem, serial.Count - inicioMensagem); //Recorta a mensagem 
-                    int fimMensagem = InicioMensagem(serial.GetRange(1, serial.Count - inicioMensagem - 1)); // Encontra o proximo inicio
-                    if (fimMensagem >= 0)
+                    if (tamanhoMensagemValido && checkSumOk)
                     {
-                        fimMensagem += 1;
-                        auxS = serial.GetRange(0, fimMensagem);
-                        serial = serial.GetRange(fimMensagem, serial.Count - fimMensagem);
-                        return auxS;
+                        if (tipoMensagem == Tipo.PointCloud)
+                            auxS = serial.GetRange(inicioMensagem, tamanhoMensagem); //Recorta a mensagem
+
+                        if (serial.Count() > tamanhoMensagem)
+                        {
+                            serial = serial.GetRange(inicioMensagem + tamanhoMensagem, serial.Count - (inicioMensagem + tamanhoMensagem));
+                            return auxS;
+                        }
+                        else
+                        {
+                            serial.Clear();
+                            return auxS;
+                        }
                     }
-                    else
+                    else if (!checkSumOk)
                     {
-                        auxS = serial.ToList();
-                        serial.Clear();
-                        return auxS;
+                        serial.RemoveRange(0, 2);
                     }
-                }else if (!checkSumOk)
-                {
-                    serial.RemoveRange(0, 2);
-                }
+
+                }                
             }
             return auxS;
         }
@@ -354,7 +352,6 @@ namespace RBS_YDLidarSerial
                     return Tipo.Health;
                 default:
                     break;
-                    //throw new Exception("Nao foi possivel identificar o tipo da mensagem. Valor do byte: " + mensagem[6]);
             }
             return Tipo.Scan;
 
