@@ -194,7 +194,7 @@ namespace RBS_YDLidarSerial
         private float Distancia(int index)
         {
             index -= 1;
-            return Utilidades.HexStringToFloat(conteudo[index * 2 + 10] + Utilidades.ShiftRightString(conteudo[index * 2 + 11], 8)) / 4f;
+            return Utilidades.HexStringToFloat(conteudo[index * 2 + 11] + conteudo[index * 2 + 10]) / 4f;
         }
 
         private float AngleCorrect(float dist)
