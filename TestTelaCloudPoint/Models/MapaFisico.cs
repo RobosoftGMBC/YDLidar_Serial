@@ -1,9 +1,10 @@
-﻿using System.IO;
+﻿using System.Collections.Generic;
+using System.IO;
 using System.Windows.Forms;
 
 namespace TestTelaCloudPoint
 {
-    class Mapa
+    class MapaFisico
     {
         public int[,] matriz;
         string[] file;
@@ -20,14 +21,13 @@ namespace TestTelaCloudPoint
                 return null;
 
             matriz = new int[4500, 4000];
-            int qqr = 0;
+            
             for (int i = 0; i < file.Length; i++)
             {
                 string linha = file[i];
                 indexMatriz = 0;
                 for (int j = 0; j < linha.Length; j++)
                 {
-                    qqr = j;
                     if (linha[j] != ';')
                     {
                         matriz[i, indexMatriz++] = 1;
@@ -40,5 +40,6 @@ namespace TestTelaCloudPoint
 
             return matriz;
         }
+
     }
 }
