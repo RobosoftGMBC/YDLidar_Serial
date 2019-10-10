@@ -500,6 +500,9 @@ namespace RBS_YDLidarSerial
 
         public bool Conectar(string portaComm)
         {
+            if (Conectado)
+                return false;
+
             listarPortas(); //lista a porta
             List<string> portas = SerialPort.GetPortNames().ToList();
 
