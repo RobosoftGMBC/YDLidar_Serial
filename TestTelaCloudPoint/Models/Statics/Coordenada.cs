@@ -9,7 +9,7 @@ namespace TestTelaCloudPoint.Models.Statics
     public class Coordenada
     {
         public int x, y;
-        public int p, dx, dy; //algoritimo de bresenham
+        public int p, dx, dy; //algoritmo de bresenham
         public float angulo, distancia;
         public Coordenada(int x, int y, int dx, int dy, float angulo, float distancia)
         {

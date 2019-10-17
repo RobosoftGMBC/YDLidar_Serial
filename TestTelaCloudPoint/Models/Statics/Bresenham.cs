@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
-
+using System.Threading;
+using System.Threading.Tasks;
 namespace TestTelaCloudPoint.Models.Statics
 {
     static class Bresenham
@@ -39,8 +40,8 @@ namespace TestTelaCloudPoint.Models.Statics
                     colCursor += colInc;
 
                     //Adiciona os valores na lista temporaria
-                    x.Add(rowCursor);
-                    y.Add(colCursor);
+                    x.Add(rowCursor/15);
+                    y.Add(colCursor/15);
                 }
 
             }
@@ -57,8 +58,8 @@ namespace TestTelaCloudPoint.Models.Statics
                     }
                     rowCursor += rowInc;
                     //Adiciona os valores na lista temporaria
-                    x.Add(rowCursor);
-                    y.Add(colCursor);
+                    x.Add(rowCursor/10);
+                    y.Add(colCursor/10);
                 }
             }
 

@@ -52,6 +52,7 @@
     <Compile Include="Models\MapaLiddar.cs" />
     <Compile Include="Models\Statics\Bresenham.cs" />
     <Compile Include="Models\Statics\Coordenada.cs" />
+    <Compile Include="Models\Statics\PontoCruz.cs" />
     <Compile Include="Models\Statics\Utils.cs" />
     <Compile Include="Views\Form1.cs">
       <SubType>Form</SubType>

@@ -66,22 +66,25 @@ namespace TestTelaCloudPoint.Controllers
 
             using (GR = Graphics.FromImage(bitmap))
             {
-
-                foreach (Coordenada coordenada in coordenadas)
+                for (int h = 0; h < coordenadas.Count; h++)
                 {
+
+                    Coordenada coordenada = coordenadas[h];
+
+                    GR.DrawLine(new Pen(Color.Silver), origemX, origemY, coordenada.x / 10 + origemX, coordenada.y /  10 + origemY);
                     //Pinta os pontos intermediarios até a coordenada
-                    int[,] matrizBresenham = Bresenham.Run(origemX, origemY, (int)((float)coordenada.x), (int)((float)coordenada.y));
-                    for (int i = 0; i < Math.Sqrt(matrizBresenham.Length); i++)
-                    {
-                        GR.FillEllipse(new SolidBrush(Color.Silver), matrizBresenham[i, 0], matrizBresenham[i, 1], 5, 5);
-                    }
+                    //int[,] matrizBresenham = Bresenham.Run(origemX, origemY, (int)((float)coordenada.x), (int)((float)coordenada.y));
+                    //for (int i = 0; i < Math.Sqrt(matrizBresenham.Length); i+=100)
+                    //{
+                    //   GR.FillRectangle(new SolidBrush(Color.Silver), matrizBresenham[i, 0]+origemX, matrizBresenham[i, 1]+origemY, 1, 1);
+                    //}
 
                     //Pinta a coordenada
-                    GR.FillEllipse(new SolidBrush(Color.Black), coordenada.x * razaoX, coordenada.y * razaoY, 5, 5);
+                    GR.FillRectangle(new SolidBrush(Color.Black), coordenada.x/10+origemX, coordenada.y/10+origemY, 2, 2);
                 }
 
                 //Pinta a origem da coordenada
-                GR.FillEllipse(new SolidBrush(Color.Red), origemX, origemY, 5, 5);
+                GR.FillEllipse(new SolidBrush(Color.Red), origemX, origemY, 10, 10);
             }
 
             return bitmap;
@@ -103,11 +106,13 @@ namespace TestTelaCloudPoint.Controllers
                     int x = ponto[0, 0];
                     int y = ponto[0, 1];
                     int ang = ponto[0, 2];
-
-                    GR.RotateTransform(x);
-                    GR.DrawLine(new Pen(Color.Black), x, y, 30, 0);
-                    GR.RotateTransform(x * -1);
-                    GR.FillEllipse(new SolidBrush(Color.DarkGreen), x / 10 + bitmap.Width / 2 - 200, y / 10 + bitmap.Height / 2 - 225, 5, 5);
+                    int tamanholinha = 15;
+                    //gera o segundo ponto
+                    float x2= (float)Math.Sin(ang) * tamanholinha + x / 10 + bitmap.Width / 2 - 100;
+                    float y2= (float)Math.Cos(ang) * tamanholinha + y / 10 + bitmap.Height / 2 - 125;
+                    //plota os pontos aleatorios e as linhas aleatorias
+                    GR.FillEllipse(new SolidBrush(Color.DarkGreen), x / 10 + bitmap.Width / 2 -100, y / 10 + bitmap.Height / 2 - 125, 5, 5);
+                    GR.DrawLine(new Pen(Color.Black), x / 10 + bitmap.Width / 2 - 100, y / 10 + bitmap.Height / 2 - 125, (int)Math.Round(x2), (int)Math.Round(y2));
                 }
             }
 
